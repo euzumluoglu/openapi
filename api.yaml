@@ -1,0 +1,993 @@
+swagger: '2.0'
+info:
+  title: Integration Request API
+  description: API to perform create/update and (un)subscribe operations on data items
+    https://marketlogic.atlassian.net/wiki/spaces/SI/pages/647824170/Data+Integration+Pipeline+-+Technical+Design
+  version: '1.0.0'
+host: integration-request.marketlogicsoftware.com
+basePath: /
+tags:
+- name: item
+  description: supports creating/updating, (un)linking with assets and tenants
+- name: asset
+  description: supports creating assets
+paths:
+  /providers/{provider_id}/items:
+    post:
+      tags:
+      - item
+      summary: creates an item
+      operationId: postItem
+      security:
+      - oauth: [ cross-tenant ]
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      parameters:
+      - name: provider_id
+        in: path
+        description: provider id
+        required: true
+        type: string
+      - name: X-Asset-ID
+        in: header
+        description: Asset ID
+        type: string
+        required: true
+      - name: item
+        in: body
+        description: item
+        required: true
+        schema:
+          $ref: '#/definitions/ItemRequest'
+      responses:
+        201:
+          description: created
+          schema:
+            $ref: '#/definitions/Item'
+    get:
+      tags:
+      - item
+      summary: get the item
+      operationId: getItem
+      security:
+      - oauth: [ cross-tenant ]
+      produces:
+      - application/json
+      parameters:
+      - name: id
+        in: path
+        description: item id
+        required: true
+        type: string
+      - name: provider_id
+        in: path
+        description: provider id
+        required: true
+        type: string
+      - name: fields
+        in: query
+        description: fields to be filtered
+        required: false
+        type: string
+      responses:
+        200:
+          description: found
+          schema:
+            $ref: '#/definitions/Item'
+  /providers/_find-by-item-id:
+    get:
+      tags:
+      - provider
+      summary: get provider for an item id
+      operationId: getProviderForItemId
+      security:
+      - oauth: [ cross-tenant ]
+      produces:
+      - application/json
+      parameters:
+      - name: item_id
+        in: query
+        description: item id
+        required: true
+        type: string
+      - name: X-Tenant-ID
+        in: header
+        description: Tenant-ID to determine tenant database
+        type: string
+        required: false
+      - name: subscribed
+        in: query
+        description: If true, the path parameter id is interpreted as global id and the subscribed record for the passed tenant id will be returned
+        type: boolean
+        required: false
+        default: false
+      responses:
+        200:
+          description: OK
+          schema:
+            $ref: '#/definitions/Provider'
+  /assets:
+    post:
+      tags:
+      - asset
+      summary: creates an asset
+      operationId: postAsset
+      security:
+      - oauth: [ cross-tenant ]
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      parameters:
+      - name: X-Tenant-ID
+        in: header
+        description: Tenant ID
+        type: string
+        required: false
+      - name: X-Product-ID
+        in: header
+        description: Product ID
+        type: string
+        required: true
+      - name: X-Provider-ID
+        in: header
+        description: Provider ID
+        type: string
+        required: true
+      - name: asset
+        in: body
+        description: Asset to be created
+        required: true
+        schema:
+          $ref: '#/definitions/Asset'
+      responses:
+        201:
+          description: created
+          schema:
+            $ref: '#/definitions/Asset'
+  /items/_reindex:
+    post:
+      tags:
+      - item
+      summary: re-index the items
+      operationId: reIndex
+      security:
+      - oauth: [ cross-tenant ]
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      parameters:
+      - in: body
+        name: reindexRequest
+        description: contains re-index data
+        required: true
+        schema:
+          $ref: '#/definitions/ReindexRequest'
+      responses:
+        201:
+          description: reindex process is completed
+          schema:
+            $ref: '#/definitions/BatchSubscribeResponse'
+  /items:
+    get:
+      tags:
+      - item
+      summary: get items by passing list of ids
+      operationId: getItemsByIDs
+      security:
+      - oauth: [ cross-tenant ]
+      produces:
+      - application/json
+      parameters:
+      - name: ids
+        in: query
+        description: ids, comma-separated values
+        required: true
+        type: string
+      - name: limit
+        in: query
+        required: false
+        type: integer
+        format: int64
+      - name: offset
+        in: query
+        required: false
+        type: integer
+        format: int64
+      - name: fields
+        in: query
+        required: false
+        type: string
+      responses:
+        200:
+          description: found
+          schema:
+            $ref: '#/definitions/ItemWithProviderResponse'
+  /items/_find-by-example:
+    post:
+      tags:
+      - item
+      summary: finds items by example, for the moment only exact match on top-level properties is supported
+      operationId: findItems
+      security:
+      - oauth: [ cross-tenant ]
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      parameters:
+      - name: item
+        in: body
+        description: item
+        required: true
+        schema:
+          $ref: '#/definitions/Item'
+      - name: limit
+        in: query
+        required: false
+        type: integer
+        format: int64
+      - name: offset
+        in: query
+        required: false
+        type: integer
+        format: int64
+      - name: fields
+        in: query
+        required: false
+        type: string
+      responses:
+        200:
+          description: found
+          schema:
+            $ref: '#/definitions/ItemWithProviderResponse'
+    # tenant operations
+  /tenants/{tenant_id}/providers/{provider_id}:
+    delete:
+      tags:
+        - tenant
+      summary: unsubscribes and removes overwritten properties for specific tenant
+      operationId: unsubscribeProvider
+      security:
+        - oauth: [ global-tenant ]
+      parameters:
+        - name: tenant_id
+          in: path
+          description: tenant id
+          required: true
+          type: string
+        - name: provider_id
+          in: path
+          description: provider id
+          required: true
+          type: string
+      responses:
+        201:
+          description: OK
+          schema:
+            $ref: '#/definitions/BatchUnsubscribeResponse'
+  /tenants/{tenant_id}/products/{product_id}:
+    delete:
+      tags:
+        - tenant
+      summary: unsubscribes and removes overwritten properties for specific tenant
+      operationId: unsubscribeProduct
+      security:
+        - oauth: [ global-tenant ]
+      parameters:
+        - name: tenant_id
+          in: path
+          description: tenant id
+          required: true
+          type: string
+        - name: product_id
+          in: path
+          description: product id
+          required: true
+          type: string
+      responses:
+        201:
+          description: deleted
+          schema:
+            $ref: '#/definitions/BatchUnsubscribeResponse'
+  /tenants/{tenant_id}/assets/{asset_id}:
+    delete:
+      tags:
+        - tenant
+      summary: unsubscribes and removes overwritten properties for specific tenant
+      operationId: unsubscribeAsset
+      security:
+        - oauth: [ global-tenant ]
+      parameters:
+        - name: tenant_id
+          in: path
+          description: tenant id
+          required: true
+          type: string
+        - name: asset_id
+          in: path
+          description: asset id
+          required: true
+          type: string
+      responses:
+        204:
+          description: deleted
+          schema:
+            $ref: '#/definitions/BatchUnsubscribeResponse'
+  /tenants/{tenant_id}/items/{item_id}:
+    delete:
+      tags:
+        - tenant
+      summary: unsubscribes and removes overwritten properties for specific tenant
+      operationId: unsubscribeItem
+      security:
+        - oauth: [ global-tenant ]
+      parameters:
+        - name: tenant_id
+          in: path
+          description: tenant id
+          required: true
+          type: string
+        - name: item_id
+          in: path
+          description: item id
+          required: true
+          type: string
+      responses:
+        201:
+          description: deleted
+          schema:
+            $ref: '#/definitions/BatchUnsubscribeResponse'
+definitions:
+  # service specific definitions
+  ReindexRequest:
+    type: object
+    properties:
+      provider_id:
+        type: string
+        description: Provider ID associated with the items to be reindexed
+      tenant_id:
+        type: string
+        description: Tenant ID associated with the items to be reindexed
+      asset_id:
+        type: string
+        description: Asset ID associated with the items to be reindexed
+      product_id:
+        type: string
+        description: Product ID associated with the items to be reindexed
+      asset_type_id:
+        type: string
+        description: Asset-Type ID associated with the items to be reindexed
+      pipeline_steps:
+        type: array
+        description: Array containing all pipeline steps to apply while re-integrating the data item
+        items:
+          type: string
+      item_id:
+        type: string
+        description: Item ID to be reindexed
+  ItemRequest:
+    type: object
+    properties:
+      tenant_id:
+        type: string
+        description: Tenant ID the entity must be associated with
+      artifacts:
+        description: Artifacts
+        type: array
+        items:
+          $ref: '#/definitions/ArtifactRequest'
+      name:
+        type: string
+        description: Name of the asset
+      foreign_id:
+        type: string
+        description: Foreign ID of the data item (unique identifier as per data provider)
+      language:
+        type: string
+        description: Language of the data item's content
+      abstract:
+        type: string
+        description: Abstract of the data item
+      authors:
+        description: Authors of the data item. Names of authors unknown to the platform as users.
+        type: array
+        items:
+          type: string
+      image_documents:
+        description: Image Documents of the data item. Internal document IDs stored via document service.
+        type: array
+        items:
+          $ref: '#/definitions/Document'
+      external_image_urls:
+        description: External Image URLs of the data item. External image URLs that are publicly available
+        type: array
+        items:
+          type: string
+      external_access_url:
+        type: string
+        description: External Access URL of the data item
+      external_access_type:
+        type: string
+        description: External Access Type of the data item
+      publication_time:
+        type: string
+        format: date-time
+        description: Publication date.
+      expiration_time:
+        type: string
+        format: date-time
+        description: Publication date.
+      tags:
+        description: Tags of the data item
+        type: array
+        items:
+          type: string
+      properties:
+        description: contains additional data as key-value of the data item
+        $ref: '#/definitions/Properties'
+  ArtifactRequest:
+    type: object
+    properties:
+      tenant_id:
+        type: string
+        description: Tenant ID the entity must be associated with
+      document_id:
+        type: string
+        description: Document ID of the data item. Internal document ID stored via document service.
+      hash:
+        type: string
+        description: Hash of the content for de-duplication
+      text:
+        type: string
+        description: Full text of the artifact.
+  Properties:
+    type: object
+    additionalProperties:
+      type: object
+  # common definitions
+  Provider:
+    type: object
+    properties:
+      id:
+        type: string
+        description: ID
+      tenant_id:
+        type: string
+        description: Tenant ID the entity must be associated with
+      original_id:
+        type: string
+        description: ID of the corresponding multitenant entity (must be set together with original_tenant_id)
+      original_tenant_id:
+        type: string
+        description: Tenant ID of the corresponding multitenant entity (must be set together with original_id)
+      name:
+        type: string
+        description: Name of the provider
+      description:
+        type: string
+        description: Description of the provider (optional)
+      logo_url:
+        type: string
+        description: Logo of the provider
+      contact:
+        type: string
+        description: Contact information (optional)
+      url:
+        type: string
+        description: URL to provider website (optional)
+      products:
+        type: array
+        items:
+          $ref: '#/definitions/Product'
+  Product:
+    type: object
+    properties:
+      id:
+        type: string
+        description: ID
+      tenant_id:
+        type: string
+        description: Tenant ID the entity must be associated with
+      original_id:
+        type: string
+        description: ID of the corresponding multitenant entity (must be set together with original_tenant_id)
+      original_tenant_id:
+        type: string
+        description: Tenant ID of the corresponding multitenant entity (must be set together with original_id)
+      provider_id:
+        type: string
+        description: Corresponding Provider ID
+      license_id:
+        type: string
+        description: Corresponding License ID
+      access_id:
+        type: string
+        description: Corresponding Access ID
+      name:
+        type: string
+        description: Name of the product
+      description:
+        type: string
+        description: Description of the product (optional)
+      logo_url:
+        type: string
+        description: Logo of the product
+      contact:
+        type: string
+        description: Contact information (optional)
+      url:
+        type: string
+        description: URL to product website (optional)
+      assets:
+        type: array
+        items:
+          $ref: '#/definitions/Asset'
+  Asset:
+    type: object
+    properties:
+      id:
+        type: string
+        description: ID
+      tenant_id:
+        type: string
+        description: Tenant ID the entity must be associated with
+      original_id:
+        type: string
+        description: ID of the corresponding multitenant entity (must be set together with original_tenant_id)
+      original_tenant_id:
+        type: string
+        description: Tenant ID of the corresponding multitenant entity (must be set together with original_id)
+      product_id:
+        type: string
+        description: Corresponding Product ID
+      license_id:
+        type: string
+        description: Corresponding License ID
+      access_id:
+        type: string
+        description: Corresponding Access ID
+      asset_type_id:
+        type: string
+        description: Corresponding Access ID
+      asset_type:
+        $ref: '#/definitions/AssetType'
+      name:
+        type: string
+        description: Name of the asset
+      description:
+        type: string
+        description: Description of the asset (optional)
+      logo_url:
+        type: string
+        description: Logo of the asset (optional)
+      publication_frequency:
+        description: 'Publication frequency. Enum: ADHOC, DAILY, WEEKLY'
+        type: string
+        x-extensible-enum:
+        - ADHOC
+        - DAILY
+        - WEEKLY
+      authors:
+        type: string
+        description: Authors (optional)
+  AssetType:
+    type: object
+    properties:
+      id:
+        type: string
+        description: ID
+      tenant_id:
+        type: string
+        description: Tenant ID the entity must be associated with
+      original_id:
+        type: string
+        description: ID of the corresponding multitenant entity (must be set together with original_tenant_id)
+      original_tenant_id:
+        type: string
+        description: Tenant ID of the corresponding multitenant entity (must be set together with original_id)
+      name:
+        type: string
+        description: Name of the asset
+      description:
+        type: string
+        description: Description of the asset (optional)
+      logo_url:
+        type: string
+        description: Logo of the asset (optional)
+      pipeline_steps:
+        description: Pipeline steps to apply to each incoming Item, contains an array of worker names
+        type: array
+        items:
+          type: string
+  Item:
+    type: object
+    properties:
+      id:
+        type: string
+        description: ID
+      tenant_id:
+        type: string
+        description: Tenant ID the entity must be associated with
+      original_id:
+        type: string
+        description: ID of the corresponding multitenant entity (must be set together with original_tenant_id)
+      original_tenant_id:
+        type: string
+        description: Tenant ID of the corresponding multitenant entity (must be set together with original_id)
+      license_id:
+        type: string
+        description: Corresponding License ID
+      access_id:
+        type: string
+        description: Corresponding Access ID
+      customized:
+        $ref: '#/definitions/Item'
+      artifacts:
+        description: Artifacts
+        type: array
+        items:
+          $ref: '#/definitions/Artifact'
+      name:
+        type: string
+        description: Name of the asset
+      foreign_id:
+        type: string
+        description: Foreign ID of the data item (unique identifier as per data provider)
+      language:
+        type: string
+        description: Language of the data item's content
+      abstract:
+        type: string
+        description: Abstract of the data item
+      authors:
+        description: Authors of the data item. Names of authors unknown to the platform as users.
+        type: array
+        items:
+          type: string
+      author_user_ids:
+        description: AuthorUserIds of the data item. Platform User IDs of the authors of the data item.
+        type: array
+        items:
+          type: string
+      external_image_urls:
+        description: External Image URLs of the data item. External image URLs that are publicly available
+        type: array
+        items:
+          type: string
+      image_documents:
+        description: Image Documents of the data item. Internal document IDs stored via document service.
+        type: array
+        items:
+          $ref: '#/definitions/Document'
+      external_access_url:
+        type: string
+        description: External Access URL of the data item
+      external_access_type:
+        type: string
+        description: External Access Type of the data item
+      publication_time:
+        type: string
+        format: date-time
+        description: Publication date.
+      expiration_time:
+        type: string
+        format: date-time
+        description: Expiration Date of the data item. Date the data item should no longer be available for users.
+      licences:
+        type: array
+        items:
+          $ref: '#/definitions/License'
+      keywords:
+        description: Keywords of the data item
+        type: array
+        items:
+          type: string
+      tags:
+        description: Tags of the data item
+        type: array
+        items:
+          type: string
+      categories:
+        description: Categories of the data item
+        type: array
+        items:
+          type: string
+      taxonomies:
+        description: Taxonomy IDs of the data item
+        type: array
+        items:
+          type: string
+      properties:
+        description: contains additional data as key-value of the data item
+        $ref: '#/definitions/Properties'
+  Artifact:
+    type: object
+    properties:
+      id:
+        type: string
+        description: ID
+      tenant_id:
+        type: string
+        description: Tenant ID the entity must be associated with
+      original_id:
+        type: string
+        description: ID of the corresponding multitenant entity (must be set together with original_tenant_id)
+      original_tenant_id:
+        type: string
+        description: Tenant ID of the corresponding multitenant entity (must be set together with original_id)
+      item_id:
+        type: string
+        description: Corresponding Item ID
+      document_id:
+        type: string
+        description: Document ID of the data item. Internal document ID stored via document service.
+      hash:
+        type: string
+        description: Hash of the content for de-duplication
+      text:
+        type: string
+        description: Full text of the artifact.
+  Document:
+    type: object
+    properties:
+      id:
+        type: string
+        description: ID
+      image_url:
+        type: string
+        description: url of the uploaded image
+      thumbnail_id:
+        type: string
+        description: uploaded image thumbnail ID
+  Source:
+    type: object
+    properties:
+      id:
+        type: string
+        description: ID
+      tenant_id:
+        type: string
+        description: Tenant ID the entity must be associated with
+      original_id:
+        type: string
+        description: ID of the corresponding multitenant entity (must be set together with original_tenant_id)
+      original_tenant_id:
+        type: string
+        description: Tenant ID of the corresponding multitenant entity (must be set together with original_id)
+      name:
+        type: string
+        description: Name of the source
+      description:
+        type: string
+        description: Description of the source (optional)
+      drops:
+        type: array
+        items:
+          $ref: '#/definitions/Drop'
+  Drop:
+    type: object
+    properties:
+      id:
+        type: string
+        description: ID
+  License:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+        description: Name of the license
+      terms:
+        type: string
+        description: Terms of the license (textual)
+      hosting:
+        type: boolean
+        description: Hosting of content allowed
+      processing:
+        type: boolean
+        description: Processing of content allowed
+      configuration:
+        type: string
+        description: Configuration information needed for technically enforcing the license
+      accesses:
+        type: array
+        items:
+          $ref: '#/definitions/Access'
+  Access:
+    type: object
+    properties:
+      id:
+        type: string
+      tenant_id:
+        type: string
+        description: Tenant ID the entity must be associated with
+      original_id:
+        type: string
+        description: ID of the corresponding multitenant entity (must be set together with original_tenant_id)
+      original_tenant_id:
+        type: string
+        description: Tenant ID of the corresponding multitenant entity (must be set together with original_id)
+      license_id:
+        type: string
+        description: Corresponding license ID
+      name:
+        type: string
+        description: Name of the access
+      instructions:
+        type: string
+        description: Instructions to be presented to users accessing the source (once or always, upon access to Data Items or upon access to the remote source)
+      sso_federation_status:
+        description: 'SSO Federation Status for sources that support SSO federation. Enum: NOT_AVAILABLE, AVAILABLE, BROKEN'
+        type: string
+        x-extensible-enum:
+        - NOT_AVAILABLE
+        - AVAILABLE
+        - BROKEN
+      configuration:
+        type: string
+        description: Technical configuration of the data connection to the source system
+  ItemWithProvider:
+    type: object
+    properties:
+      item:
+        description: contains additional data as key-value of the data item
+        $ref: '#/definitions/Item'
+      provider:
+        description: contains additional data as key-value of the data item
+        $ref: '#/definitions/Provider'
+  # secondary objects
+  RelationshipGetResponse:
+    type: object
+    properties:
+      ids:
+        description: list of id's
+        type: array
+        items:
+          type: string
+  RelationshipPatch:
+    type: object
+    properties:
+      operation:
+        description: 'Operation. Enum: ADD, REMOVE, SET'
+        type: string
+        x-extensible-enum:
+        - ADD
+        - REMOVE
+        - SET
+      ids:
+        description: list of id's
+        type: array
+        items:
+          type: string
+  ProviderResponse:
+    type: object
+    properties:
+      total:
+        type: integer
+        format: int64
+      providers:
+        type: array
+        items:
+          $ref: '#/definitions/Provider'
+  ProductResponse:
+    type: object
+    properties:
+      total:
+        type: integer
+        format: int64
+      products:
+        type: array
+        items:
+          $ref: '#/definitions/Product'
+  AssetResponse:
+    type: object
+    properties:
+      total:
+        type: integer
+        format: int64
+      assets:
+        type: array
+        items:
+          $ref: '#/definitions/Asset'
+  AssetTypeResponse:
+    type: object
+    properties:
+      total:
+        type: integer
+        format: int64
+      assettypes:
+        type: array
+        items:
+          $ref: '#/definitions/AssetType'
+  ItemResponse:
+    type: object
+    properties:
+      total:
+        type: integer
+        format: int64
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/Item'
+  ArtifactResponse:
+    type: object
+    properties:
+      total:
+        type: integer
+        format: int64
+      items:
+        type: array
+        items:
+          $ref: '#/definitions/Artifact'
+  LicenseResponse:
+    type: object
+    properties:
+      total:
+        type: integer
+        format: int64
+      licenses:
+        type: array
+        items:
+          $ref: '#/definitions/License'
+  AccessResponse:
+    type: object
+    properties:
+      total:
+        type: integer
+        format: int64
+      accesses:
+        type: array
+        items:
+          $ref: '#/definitions/Access'
+  SourceResponse:
+    type: object
+    properties:
+      total:
+        type: integer
+        format: int64
+      sources:
+        type: array
+        items:
+          $ref: '#/definitions/Source'
+  DropResponse:
+    type: object
+    properties:
+      total:
+        type: integer
+        format: int64
+      drops:
+        type: array
+        items:
+          $ref: '#/definitions/Drop'
+  ItemWithProviderResponse:
+    type: object
+    properties:
+      total:
+        type: integer
+        format: int64
+      elements:
+        type: array
+        items:
+          $ref: '#/definitions/ItemWithProvider'
+  BatchUnsubscribeResponse:
+    type: object
+    properties:
+      batch_process_id:
+        type: string
+  BatchSubscribeResponse:
+    type: object
+    properties:
+      batch_process_id:
+        type: string
+securityDefinitions:
+  oauth:
+    type: oauth2
+    flow: application
+    tokenUrl: http://token-business-service:8080/token
+    scopes:
+      cross-tenant: Grants access for cross-tenant operations
