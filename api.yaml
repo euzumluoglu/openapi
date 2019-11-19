@@ -2,7 +2,6 @@ swagger: '2.0'
 info:
   title: Integration Request API
   description: API to perform create/update and (un)subscribe operations on data items
-    https://marketlogic.atlassian.net/wiki/spaces/SI/pages/647824170/Data+Integration+Pipeline+-+Technical+Design
   version: '1.0.0'
 host: integration-request.marketlogicsoftware.com
 basePath: /
